@@ -44,6 +44,24 @@ python app.py
 #    http://localhost:5000
 ```
 
+## Deployment on Render
+
+1. Push this repository to GitHub.
+
+2. Connect your Render account to the GitHub repo.
+
+3. Create a new Web Service on Render.
+
+4. Set the following:
+   - **Runtime**: Python 3
+   - **Build Command**: `pip install -r requirements.txt`
+   - **Start Command**: `gunicorn app:app --bind 0.0.0.0:$PORT`
+   - **Environment Variables**: Add `FLASK_ENV=production`
+
+5. Deploy!
+
+Note: Render's free tier has resource limits. Long training runs may timeout. Consider upgrading for intensive RL training.
+
 ## API Endpoints
 
 | Method | Endpoint | Description |
