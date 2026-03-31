@@ -1,0 +1,599 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Microgrid RL Dashboard — India</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+  :root {
+    --bg:#0a0c0f; --surface:#111318; --surface2:#181c22;
+    --border:rgba(255,255,255,0.07); --border2:rgba(255,255,255,0.13);
+    --text:#e8eaf0; --muted:#6b7280;
+    --accent:#00d4aa; --accent2:#ff6b35; --accent3:#7c6af5;
+    --q:#4da8ff; --s:#00d4aa; --d:#ff9a3c;
+    --danger:#ff4d6d; --success:#22c55e;
+    --font:'Syne',sans-serif; --mono:'DM Mono',monospace;
+    --r:10px; --rl:16px;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{background:var(--bg);color:var(--text);font-family:var(--font);min-height:100vh;overflow-x:hidden;}
+  body::before{content:'';position:fixed;inset:0;
+    background-image:linear-gradient(rgba(0,212,170,.015) 1px,transparent 1px),linear-gradient(90deg,rgba(0,212,170,.015) 1px,transparent 1px);
+    background-size:40px 40px;pointer-events:none;z-index:0;}
+  .app{position:relative;z-index:1;display:flex;flex-direction:column;min-height:100vh;}
+
+  header{display:flex;align-items:center;justify-content:space-between;padding:16px 28px;
+    border-bottom:1px solid var(--border);background:rgba(10,12,15,.9);
+    backdrop-filter:blur(12px);position:sticky;top:0;z-index:100;}
+  .logo{display:flex;align-items:center;gap:12px;}
+  .logo-icon{width:34px;height:34px;border-radius:8px;
+    background:linear-gradient(135deg,var(--accent),var(--accent3));
+    display:flex;align-items:center;justify-content:center;font-size:16px;}
+  .logo-title{font-size:15px;font-weight:700;letter-spacing:-.02em;}
+  .logo-sub{font-size:11px;color:var(--muted);font-family:var(--mono);}
+  .hdr-right{display:flex;align-items:center;gap:10px;}
+  .pill{display:flex;align-items:center;gap:6px;background:var(--surface);border:1px solid var(--border2);
+    padding:5px 12px;border-radius:20px;font-size:12px;font-family:var(--mono);}
+  .dot{width:6px;height:6px;border-radius:50%;background:var(--muted);}
+  .dot.run{background:var(--accent);animation:pulse 1s infinite;}
+  .dot.done{background:var(--success);}
+  .dot.err{background:var(--danger);}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+
+  .main{display:grid;grid-template-columns:295px 1fr;flex:1;}
+  .sidebar{background:var(--surface);border-right:1px solid var(--border);
+    padding:22px 18px;display:flex;flex-direction:column;gap:22px;
+    overflow-y:auto;max-height:calc(100vh - 69px);position:sticky;top:69px;}
+  .sec-label{font-size:10px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;
+    color:var(--muted);margin-bottom:10px;display:flex;align-items:center;gap:8px;}
+  .sec-label::after{content:'';flex:1;height:1px;background:var(--border);}
+  .pgroup{display:flex;flex-direction:column;gap:12px;}
+  .prow{display:flex;flex-direction:column;gap:5px;}
+  .plabel{display:flex;justify-content:space-between;align-items:center;font-size:12px;color:var(--muted);}
+  .plabel span:last-child{font-family:var(--mono);font-size:12px;font-weight:500;color:var(--accent);
+    background:rgba(0,212,170,.1);padding:1px 6px;border-radius:4px;}
+  input[type=range]{-webkit-appearance:none;width:100%;height:4px;border-radius:2px;
+    background:var(--surface2);outline:none;cursor:pointer;}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;
+    border-radius:50%;background:var(--accent);border:2px solid var(--bg);cursor:pointer;transition:transform .15s;}
+  input[type=range]::-webkit-slider-thumb:hover{transform:scale(1.2);}
+
+  .atogs{display:flex;flex-direction:column;gap:7px;}
+  .atog{display:flex;align-items:center;justify-content:space-between;background:var(--surface2);
+    border:1px solid var(--border);border-radius:var(--r);padding:9px 13px;cursor:pointer;
+    transition:border-color .2s;user-select:none;}
+  .atog.on-q{border-color:var(--q);background:rgba(77,168,255,.07);}
+  .atog.on-s{border-color:var(--s);background:rgba(0,212,170,.07);}
+  .atog.on-d{border-color:var(--d);background:rgba(255,154,60,.07);}
+  .aname{font-size:13px;font-weight:600;}
+  .asub{font-size:11px;color:var(--muted);margin-top:1px;}
+  .sw{width:32px;height:18px;border-radius:9px;background:var(--surface);border:1px solid var(--border2);
+    position:relative;transition:background .2s;flex-shrink:0;}
+  .sw.on-q{background:var(--q);border-color:var(--q);}
+  .sw.on-s{background:var(--s);border-color:var(--s);}
+  .sw.on-d{background:var(--d);border-color:var(--d);}
+  .sw::after{content:'';position:absolute;width:12px;height:12px;background:#fff;border-radius:50%;
+    top:2px;left:2px;transition:transform .2s;}
+  .sw.on-q::after,.sw.on-s::after,.sw.on-d::after{transform:translateX(14px);}
+
+  .run-btn{width:100%;padding:13px;background:linear-gradient(135deg,var(--accent),#00a882);
+    border:none;border-radius:var(--r);color:#000;font-family:var(--font);font-size:14px;font-weight:700;
+    cursor:pointer;transition:opacity .2s,transform .15s;display:flex;align-items:center;justify-content:center;gap:8px;}
+  .run-btn:hover{opacity:.9;transform:translateY(-1px);}
+  .run-btn:active{transform:none;}
+  .run-btn:disabled{opacity:.4;cursor:not-allowed;transform:none;}
+  .stop-btn{width:100%;padding:10px;background:transparent;border:1px solid rgba(255,77,109,.4);
+    border-radius:var(--r);color:var(--danger);font-family:var(--font);font-size:13px;font-weight:600;
+    cursor:pointer;transition:all .2s;display:none;}
+  .stop-btn:hover{background:rgba(255,77,109,.1);}
+  .rst-btn{width:100%;padding:10px;background:transparent;border:1px solid var(--border2);
+    border-radius:var(--r);color:var(--muted);font-family:var(--font);font-size:13px;font-weight:600;cursor:pointer;transition:all .2s;}
+  .rst-btn:hover{border-color:var(--border2);color:var(--text);}
+
+  .content{display:flex;flex-direction:column;padding:22px;gap:18px;overflow-y:auto;}
+
+  .metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:11px;}
+  .mc{background:var(--surface);border:1px solid var(--border);border-radius:var(--rl);padding:15px 18px;transition:border-color .4s;}
+  .mc.hl-q{border-color:rgba(77,168,255,.4);}
+  .mc.hl-s{border-color:rgba(0,212,170,.4);}
+  .mc.hl-d{border-color:rgba(255,154,60,.4);}
+  .mlabel{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:7px;}
+  .mval{font-size:24px;font-weight:800;letter-spacing:-.03em;}
+  .msub{font-size:11px;color:var(--muted);margin-top:3px;font-family:var(--mono);}
+  .cq{color:var(--q);} .cs{color:var(--s);} .cd{color:var(--d);} .cn{color:var(--text);}
+
+  .prog-wrap{background:var(--surface2);border-radius:4px;height:4px;overflow:hidden;}
+  .prog-bar{height:100%;background:linear-gradient(90deg,var(--accent),var(--accent3));width:0%;transition:width .3s;}
+  .prog-label{font-family:var(--mono);font-size:11px;color:var(--muted);text-align:right;margin-bottom:4px;}
+
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:var(--rl);padding:18px;}
+  .card.full{grid-column:1/-1;}
+  .ctitle{font-size:13px;font-weight:700;margin-bottom:3px;}
+  .csub{font-size:11px;color:var(--muted);margin-bottom:14px;font-family:var(--mono);}
+  .cgrid{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+  .cw{position:relative;width:100%;}
+
+  .leg{display:flex;gap:16px;margin-bottom:10px;flex-wrap:wrap;}
+  .li{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted);}
+  .ld{width:10px;height:3px;border-radius:2px;}
+
+  .abars{display:flex;flex-direction:column;gap:14px;}
+  .agroup-label{font-size:11px;font-weight:600;margin-bottom:5px;}
+  .arow{display:flex;align-items:center;gap:9px;font-size:12px;margin-bottom:4px;}
+  .albl{min-width:68px;color:var(--muted);}
+  .atrack{flex:1;height:7px;background:var(--surface2);border-radius:4px;overflow:hidden;}
+  .afill{height:100%;border-radius:4px;transition:width .5s;}
+  .aval{min-width:38px;text-align:right;font-family:var(--mono);font-size:11px;}
+
+  .log-body{font-family:var(--mono);font-size:11px;color:var(--muted);
+    height:96px;overflow-y:auto;display:flex;flex-direction:column;gap:3px;}
+  .logrow{display:flex;gap:10px;}
+  .lep{color:var(--muted);min-width:64px;}
+
+  .err-box{background:rgba(255,77,109,.08);border:1px solid rgba(255,77,109,.3);
+    border-radius:var(--r);padding:12px;font-family:var(--mono);font-size:11px;color:var(--danger);
+    white-space:pre-wrap;display:none;margin-top:8px;}
+
+  ::-webkit-scrollbar{width:4px;}
+  ::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px;}
+  @keyframes fadeIn{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:none}}
+  .fi{animation:fadeIn .4s ease forwards;}
+</style>
+</head>
+<body>
+<div class="app">
+
+<header>
+  <div class="logo">
+    <div class="logo-icon">⚡</div>
+    <div>
+      <div class="logo-title">Microgrid RL</div>
+    </div>
+  </div>
+  <div class="hdr-right">
+    <div class="pill"><div class="dot" id="sDot"></div><span id="sTxt">Ready</span></div>
+    <div class="pill"><span id="epPill">Ep 0 / 0</span></div>
+    <div class="pill" id="backendPill" style="border-color:rgba(255,77,109,.4);color:var(--danger);display:none">⚠ Backend offline</div>
+  </div>
+</header>
+
+<div class="main">
+<aside class="sidebar">
+
+  <div>
+    <div class="sec-label">Algorithms</div>
+    <div class="atogs">
+      <div class="atog on-q" id="tog-q" onclick="toggleAlgo('q')">
+        <div><div class="aname">Q-Learning</div><div class="asub">Off-policy TD · greedy max</div></div>
+        <div class="sw on-q" id="sw-q"></div>
+      </div>
+      <div class="atog on-s" id="tog-s" onclick="toggleAlgo('s')">
+        <div><div class="aname">SARSA</div><div class="asub">On-policy TD · follows π</div></div>
+        <div class="sw on-s" id="sw-s"></div>
+      </div>
+      <div class="atog on-d" id="tog-d" onclick="toggleAlgo('d')">
+        <div><div class="aname">DQN</div><div class="asub">Neural Q-net · replay buffer</div></div>
+        <div class="sw on-d" id="sw-d"></div>
+      </div>
+    </div>
+  </div>
+
+  <div>
+    <div class="sec-label">Training</div>
+    <div class="pgroup">
+      <div class="prow"><div class="plabel"><span>Episodes</span><span id="v-ep">300</span></div><input type="range" id="s-ep" min="50" max="1000" step="50" value="300" oninput="sv('ep',this.value)"></div>
+      <div class="prow"><div class="plabel"><span>Alpha α (learning rate)</span><span id="v-al">0.10</span></div><input type="range" id="s-al" min="0.01" max="0.5" step="0.01" value="0.1" oninput="sv('al',parseFloat(this.value).toFixed(2))"></div>
+      <div class="prow"><div class="plabel"><span>Gamma γ (discount)</span><span id="v-ga">0.95</span></div><input type="range" id="s-ga" min="0.5" max="0.99" step="0.01" value="0.95" oninput="sv('ga',parseFloat(this.value).toFixed(2))"></div>
+      <div class="prow"><div class="plabel"><span>ε start</span><span id="v-e0">1.00</span></div><input type="range" id="s-e0" min="0.3" max="1.0" step="0.05" value="1.0" oninput="sv('e0',parseFloat(this.value).toFixed(2))"></div>
+      <div class="prow"><div class="plabel"><span>ε decay</span><span id="v-ed">0.995</span></div><input type="range" id="s-ed" min="0.97" max="0.999" step="0.001" value="0.995" oninput="sv('ed',parseFloat(this.value).toFixed(3))"></div>
+    </div>
+  </div>
+
+  <div>
+    <div class="sec-label">Environment</div>
+    <div class="pgroup">
+      <div class="prow"><div class="plabel"><span>Battery capacity (kWh)</span><span id="v-bt">5</span></div><input type="range" id="s-bt" min="1" max="20" step="1" value="5" oninput="sv('bt',this.value);fetchProfile()"></div>
+      <div class="prow"><div class="plabel"><span>Solar peak (kW) — rooftop</span><span id="v-sp">2.0</span></div><input type="range" id="s-sp" min="0.5" max="10" step="0.5" value="2" oninput="sv('sp',parseFloat(this.value).toFixed(1));fetchProfile()"></div>
+      <div class="prow"><div class="plabel"><span>Base demand (kW)</span><span id="v-dm">0.8</span></div><input type="range" id="s-dm" min="0.2" max="5" step="0.1" value="0.8" oninput="sv('dm',parseFloat(this.value).toFixed(1));fetchProfile()"></div>
+      <div class="prow"><div class="plabel"><span>Import price (₹/kWh)</span><span id="v-ip">6.50</span></div><input type="range" id="s-ip" min="3" max="12" step="0.25" value="6.50" oninput="sv('ip',parseFloat(this.value).toFixed(2))"></div>
+      <div class="prow"><div class="plabel"><span>Export / FiT (₹/kWh)</span><span id="v-xp">3.00</span></div><input type="range" id="s-xp" min="1" max="6" step="0.25" value="3.00" oninput="sv('xp',parseFloat(this.value).toFixed(2))"></div>
+      <div class="prow"><div class="plabel"><span>Noise level</span><span id="v-no">0.20</span></div><input type="range" id="s-no" min="0" max="1.0" step="0.05" value="0.2" oninput="sv('no',parseFloat(this.value).toFixed(2))"></div>
+    </div>
+  </div>
+
+  <div>
+    <div class="sec-label">DQN Settings</div>
+    <div class="pgroup">
+      <div class="prow"><div class="plabel"><span>Hidden units</span><span id="v-hu">64</span></div><input type="range" id="s-hu" min="16" max="256" step="16" value="64" oninput="sv('hu',this.value)"></div>
+      <div class="prow"><div class="plabel"><span>Batch size</span><span id="v-bs">32</span></div><input type="range" id="s-bs" min="8" max="128" step="8" value="32" oninput="sv('bs',this.value)"></div>
+      <div class="prow"><div class="plabel"><span>Target update freq</span><span id="v-tu">10</span></div><input type="range" id="s-tu" min="2" max="50" step="2" value="10" oninput="sv('tu',this.value)"></div>
+      <div class="prow"><div class="plabel"><span>Replay memory</span><span id="v-ms">5000</span></div><input type="range" id="s-ms" min="500" max="10000" step="500" value="5000" oninput="sv('ms',this.value)"></div>
+    </div>
+  </div>
+
+  <button class="run-btn" id="runBtn" onclick="startTraining()">▶ Run Training</button>
+  <button class="stop-btn" id="stopBtn" onclick="stopTraining()">■ Stop</button>
+  <button class="rst-btn" onclick="resetDash()">↺ Reset</button>
+  <div class="err-box" id="errBox"></div>
+
+</aside>
+
+<main class="content">
+
+  <div class="metrics fi">
+    <div class="mc" id="mc-q"><div class="mlabel">Q-Learning · Avg Cost</div><div class="mval cq" id="mv-q">—</div><div class="msub" id="ms-q">not trained</div></div>
+    <div class="mc" id="mc-s"><div class="mlabel">SARSA · Avg Cost</div><div class="mval cs" id="mv-s">—</div><div class="msub" id="ms-s">not trained</div></div>
+    <div class="mc" id="mc-d"><div class="mlabel">DQN · Avg Cost</div><div class="mval cd" id="mv-d">—</div><div class="msub" id="ms-d">not trained</div></div>
+    <div class="mc"><div class="mlabel">Best Algorithm</div><div class="mval cn" id="mv-best">—</div><div class="msub" id="ms-best">awaiting run</div></div>
+  </div>
+
+  <div>
+    <div class="prog-label" id="progLbl">Ready to train</div>
+    <div class="prog-wrap"><div class="prog-bar" id="progBar"></div></div>
+  </div>
+
+  <div class="card fi">
+    <div class="ctitle">24-Hour Environment Profile</div>
+    <div class="csub">Indian rooftop solar (peak ~13:00 IST) vs household demand</div>
+    <div class="leg">
+      <div class="li"><div class="ld" style="background:#f59e0b"></div>Solar generation</div>
+      <div class="li"><div class="ld" style="background:var(--accent2)"></div>Household demand</div>
+    </div>
+    <div class="cw" style="height:120px"><canvas id="profileChart"></canvas></div>
+  </div>
+
+  <div class="card fi">
+    <div class="ctitle">Learning Curves</div>
+    <div class="csub">Smoothed reward per episode (20-ep rolling avg)</div>
+    <div class="leg">
+      <div class="li"><div class="ld" style="background:var(--q)"></div>Q-Learning</div>
+      <div class="li"><div class="ld" style="background:var(--s)"></div>SARSA</div>
+      <div class="li"><div class="ld" style="background:var(--d)"></div>DQN</div>
+    </div>
+    <div class="cw" style="height:220px"><canvas id="lcChart"></canvas></div>
+  </div>
+
+  <div class="cgrid">
+    <div class="card fi">
+      <div class="ctitle">Action Distribution</div>
+      <div class="csub">Greedy policy breakdown after training</div>
+      <div class="abars" id="actionBars"><div style="color:var(--muted);font-size:12px;font-family:var(--mono)">Train to see results</div></div>
+    </div>
+    <div class="card fi">
+      <div class="ctitle">ε Exploration Decay</div>
+      <div class="csub">Computed from your settings</div>
+      <div class="cw" style="height:160px"><canvas id="epsChart"></canvas></div>
+    </div>
+  </div>
+
+  <div class="cgrid">
+    <div class="card fi">
+      <div class="ctitle">Battery Level — Typical Day</div>
+      <div class="csub">Average state under greedy policy (eval episodes)</div>
+      <div class="cw" style="height:160px"><canvas id="battChart"></canvas></div>
+    </div>
+    <div class="card fi">
+      <div class="ctitle">Cumulative Cost — Typical Day</div>
+      <div class="csub">Running electricity cost over 24h horizon</div>
+      <div class="cw" style="height:160px"><canvas id="costChart"></canvas></div>
+    </div>
+  </div>
+
+  <div class="card fi">
+    <div class="ctitle" style="margin-bottom:10px">Live Training Log <span style="font-size:11px;color:var(--muted);font-family:var(--mono);font-weight:400"></span></div>
+    <div class="log-body" id="logBody">
+      <div style="color:var(--muted)">Adjust parameters and press Run Training…</div>
+    </div>
+  </div>
+
+</main>
+</div>
+</div>
+
+<script>
+const API = '';   
+
+const enabled = {q:true, s:true, d:true};
+let charts = {};
+let pollTimer = null;
+let lastEp = 0;
+let backendOk = true;
+
+function sv(id, val) { document.getElementById('v-'+id).textContent = val; }
+
+function getP() {
+  const g = id => +document.getElementById('s-'+id).value;
+  return {
+    episodes:      g('ep'),
+    alpha:         g('al'),
+    gamma:         g('ga'),
+    epsilon:       g('e0'),
+    epsilon_decay: g('ed'),
+    battery_max:   g('bt'),
+    solar_peak:    g('sp'),
+    demand_base:   g('dm'),
+    import_price:  g('ip'),
+    export_price:  g('xp'),
+    noise:         g('no'),
+    hidden:        g('hu'),
+    batch_size:    g('bs'),
+    target_update: g('tu'),
+    memory_size:   g('ms'),
+    enabled:       {...enabled},
+    seed:          42,
+  };
+}
+
+function toggleAlgo(k) {
+  enabled[k] = !enabled[k];
+  document.getElementById('tog-'+k).className = 'atog' + (enabled[k] ? ' on-'+k : '');
+  document.getElementById('sw-'+k).className  = 'sw'   + (enabled[k] ? ' on-'+k : '');
+}
+
+async function checkBackend() {
+  try {
+    const r = await fetch(API+'/api/status', {signal: AbortSignal.timeout(2000)});
+    backendOk = r.ok;
+  } catch { backendOk = false; }
+  document.getElementById('backendPill').style.display = backendOk ? 'none' : 'flex';
+  return backendOk;
+}
+
+async function fetchProfile() {
+  const p = getP();
+  try {
+    const url = `${API}/api/profile?battery_max=${p.battery_max}&solar_peak=${p.solar_peak}&demand_base=${p.demand_base}`;
+    const res = await fetch(url);
+    const data = await res.json();
+    renderProfile(data.solar, data.demand);
+  } catch {
+    renderProfileFallback();
+  }
+}
+
+const HOURS = Array.from({length:24},(_,i)=>`${String(i).padStart(2,'0')}:00`);
+const GC = 'rgba(255,255,255,0.05)';
+
+function mkChart(id, cfg) {
+  if (charts[id]) charts[id].destroy();
+  charts[id] = new Chart(document.getElementById(id), cfg);
+  return charts[id];
+}
+
+function baseScales(xCb, yCb) {
+  return {
+    x:{ticks:{color:'#6b7280',font:{size:9},maxTicksLimit:12,maxRotation:0},grid:{color:GC},border:{color:'transparent'},callback:xCb},
+    y:{ticks:{color:'#6b7280',font:{size:10},callback:yCb},grid:{color:GC},border:{color:'transparent'}}
+  };
+}
+
+function renderProfile(solar, demand) {
+  mkChart('profileChart', {
+    type:'bar',
+    data:{labels:HOURS, datasets:[
+      {label:'Solar',data:solar,backgroundColor:'rgba(245,158,11,.7)',borderRadius:3,order:2},
+      {label:'Demand',data:demand,type:'line',borderColor:'#ff6b35',pointRadius:0,borderWidth:2,tension:.4,fill:false,order:1}
+    ]},
+    options:{responsive:true,maintainAspectRatio:false,animation:{duration:300},
+      plugins:{legend:{display:false}},
+      scales:{
+        x:{ticks:{color:'#6b7280',font:{size:9},maxRotation:0,maxTicksLimit:12},grid:{color:GC},border:{color:'transparent'}},
+        y:{ticks:{color:'#6b7280',font:{size:10},callback:v=>v.toFixed(1)+' kW'},grid:{color:GC},border:{color:'transparent'},beginAtZero:true}
+      }
+    }
+  });
+}
+
+function renderProfileFallback() {
+  const p = getP();
+  const solar = Array.from({length:24},(_,h)=>Math.max(0,p.solar_peak*Math.exp(-0.5*((h-13)/2.5)**2)));
+  const demand = Array.from({length:24},(_,h)=>Math.max(0.3,p.demand_base+1.0*Math.exp(-0.5*((h-7)/1.2)**2)+2.5*Math.exp(-0.5*((h-19.5)/1.8)**2)));
+  renderProfile(solar, demand);
+}
+
+function initLCChart() {
+  const n = +document.getElementById('s-ep').value;
+  mkChart('lcChart', {
+    type:'line',
+    data:{labels:Array.from({length:n},(_,i)=>i+1), datasets:[
+      {label:'Q-Learning',data:[],borderColor:'#4da8ff',backgroundColor:'rgba(77,168,255,.07)',pointRadius:0,borderWidth:2,tension:.4,fill:true},
+      {label:'SARSA',data:[],borderColor:'#00d4aa',backgroundColor:'rgba(0,212,170,.05)',pointRadius:0,borderWidth:2,tension:.4,fill:true},
+      {label:'DQN',data:[],borderColor:'#ff9a3c',backgroundColor:'rgba(255,154,60,.05)',pointRadius:0,borderWidth:2,tension:.4,fill:true}
+    ]},
+    options:{responsive:true,maintainAspectRatio:false,animation:{duration:0},
+      plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>`${c.dataset.label}: ₹${Math.abs(c.parsed.y).toFixed(3)}`}}},
+      scales:{
+        x:{ticks:{color:'#6b7280',font:{size:10},maxTicksLimit:10},grid:{color:GC},border:{color:'transparent'}},
+        y:{ticks:{color:'#6b7280',font:{size:10},callback:v=>'₹'+Math.abs(v).toFixed(1)},grid:{color:GC},border:{color:'transparent'}}
+      }
+    }
+  });
+}
+
+function updateLCChart(curves) {
+  if (!charts.lcChart) return;
+  charts.lcChart.data.datasets[0].data = curves.q || [];
+  charts.lcChart.data.datasets[1].data = curves.s || [];
+  charts.lcChart.data.datasets[2].data = curves.d || [];
+  charts.lcChart.update('none');
+}
+
+function initEpsChart() {
+  const p = getP();
+  const data = []; let e = p.epsilon;
+  for (let i=0;i<p.episodes;i++){data.push(+e.toFixed(4));e=Math.max(0.01,e*p.epsilon_decay);}
+  mkChart('epsChart',{
+    type:'line',
+    data:{labels:data.map((_,i)=>i+1),datasets:[{data,borderColor:'#7c6af5',pointRadius:0,borderWidth:2,tension:.3,fill:true,backgroundColor:'rgba(124,106,245,.08)'}]},
+    options:{responsive:true,maintainAspectRatio:false,animation:{duration:300},
+      plugins:{legend:{display:false}},
+      scales:{
+        x:{ticks:{color:'#6b7280',font:{size:10},maxTicksLimit:8},grid:{color:GC},border:{color:'transparent'}},
+        y:{ticks:{color:'#6b7280',font:{size:10},callback:v=>v.toFixed(2)},grid:{color:GC},border:{color:'transparent'},min:0,max:1}
+      }
+    }
+  });
+}
+
+function renderResults(data) {
+  const fmt = r=>`₹${Math.abs(r.mean).toFixed(2)}`;
+  const colors = {q:'#4da8ff',s:'#00d4aa',d:'#ff9a3c'};
+  const names  = {q:'Q-Learning',s:'SARSA',d:'DQN'};
+
+  if(data.q){document.getElementById('mv-q').textContent=fmt(data.q);document.getElementById('ms-q').textContent=`σ = ±₹${data.q.std.toFixed(2)}`;document.getElementById('mc-q').className='mc hl-q';}
+  if(data.s){document.getElementById('mv-s').textContent=fmt(data.s);document.getElementById('ms-s').textContent=`σ = ±₹${data.s.std.toFixed(2)}`;document.getElementById('mc-s').className='mc hl-s';}
+  if(data.d){document.getElementById('mv-d').textContent=fmt(data.d);document.getElementById('ms-d').textContent=`σ = ±₹${data.d.std.toFixed(2)}`;document.getElementById('mc-d').className='mc hl-d';}
+
+  const means = Object.entries(data).map(([k,v])=>({k,v:v.mean})).sort((a,b)=>a.v-b.v);
+  if(means.length){
+    document.getElementById('mv-best').textContent=names[means[0].k];
+    document.getElementById('ms-best').textContent=`₹${Math.abs(means[0].v).toFixed(2)} / day`;
+  }
+
+  const al = ['Store','Discharge','Sell'];
+  let html='';
+  for(const [k,r] of Object.entries(data)){
+    html+=`<div style="margin-bottom:14px"><div class="agroup-label" style="color:${colors[k]}">${names[k]}</div>`;
+    r.action_pct.forEach((pct,i)=>{
+      html+=`<div class="arow"><div class="albl">${al[i]}</div><div class="atrack"><div class="afill" style="width:${pct.toFixed(1)}%;background:${colors[k]}"></div></div><div class="aval" style="color:${colors[k]}">${pct.toFixed(1)}%</div></div>`;
+    });
+    html+='</div>';
+  }
+  document.getElementById('actionBars').innerHTML=html||'<div style="color:var(--muted);font-size:12px">No data</div>';
+
+  const dsets_b=[],dsets_c=[];
+  for(const [k,r] of Object.entries(data)){
+    dsets_b.push({label:names[k],data:r.batt_profile,borderColor:colors[k],pointRadius:0,borderWidth:2,tension:.4,fill:false});
+    dsets_c.push({label:names[k],data:r.cost_profile,borderColor:colors[k],pointRadius:0,borderWidth:2,tension:.4,fill:false});
+  }
+  const lineOpts=(yCb)=>({responsive:true,maintainAspectRatio:false,animation:{duration:400},
+    plugins:{legend:{display:false}},
+    scales:{
+      x:{ticks:{color:'#6b7280',font:{size:9},maxRotation:0,maxTicksLimit:8},grid:{color:GC},border:{color:'transparent'}},
+      y:{ticks:{color:'#6b7280',font:{size:10},callback:yCb},grid:{color:GC},border:{color:'transparent'}}
+    }
+  });
+  mkChart('battChart',{type:'line',data:{labels:HOURS,datasets:dsets_b},options:lineOpts(v=>v.toFixed(1)+' kWh')});
+  mkChart('costChart',{type:'line',data:{labels:HOURS,datasets:dsets_c},options:lineOpts(v=>'₹'+v.toFixed(2))});
+}
+
+function appendLog(rows) {
+  const body = document.getElementById('logBody');
+  for (const r of rows) {
+    const div = document.createElement('div');
+    div.className = 'logrow';
+    let inner = `<span class="lep">Ep ${r.ep}</span>`;
+    if (r.q!=null) inner+=`<span style="color:var(--q)">Q:₹${Math.abs(r.q).toFixed(2)}</span>`;
+    if (r.s!=null) inner+=`<span style="color:var(--s)">S:₹${Math.abs(r.s).toFixed(2)}</span>`;
+    if (r.d!=null) inner+=`<span style="color:var(--d)">D:₹${Math.abs(r.d).toFixed(2)}</span>`;
+    div.innerHTML = inner;
+    body.appendChild(div);
+  }
+  while (body.children.length > 60) body.removeChild(body.children[0]);
+  body.scrollTop = body.scrollHeight;
+}
+
+function setStatus(txt, dotCls) {
+  document.getElementById('sTxt').textContent = txt;
+  document.getElementById('sDot').className = 'dot ' + dotCls;
+}
+
+async function poll() {
+  try {
+    const st = await (await fetch(API+'/api/status')).json();
+    document.getElementById('epPill').textContent = `Ep ${st.episode} / ${st.total}`;
+    document.getElementById('progBar').style.width = st.progress+'%';
+    document.getElementById('progLbl').textContent = `Episode ${st.episode} / ${st.total}`;
+
+    if (st.error) {
+      setStatus('Error', 'err');
+      document.getElementById('errBox').textContent = st.error;
+      document.getElementById('errBox').style.display = 'block';
+      stopPoll(); endUI();
+      return;
+    }
+
+    if (st.running) setStatus('Training…', 'run');
+
+    const cv = await (await fetch(API+'/api/curves')).json();
+    updateLCChart(cv);
+
+    const log = await (await fetch(API+`/api/log?since=${lastEp}`)).json();
+    if (log.length) { appendLog(log); lastEp = log[log.length-1].ep; }
+
+    if (!st.running) {
+      const res = await (await fetch(API+'/api/results')).json();
+      if (res.ready) {
+        renderResults(res.data);
+        setStatus('Complete', 'done');
+      }
+      stopPoll(); endUI();
+    }
+  } catch(e) {
+    setStatus('Disconnected', 'err');
+  }
+}
+
+function startPoll() { if(pollTimer) clearInterval(pollTimer); pollTimer = setInterval(poll, 600); }
+function stopPoll()  { if(pollTimer){ clearInterval(pollTimer); pollTimer=null; } }
+
+function endUI() {
+  document.getElementById('runBtn').disabled = false;
+  document.getElementById('stopBtn').style.display = 'none';
+}
+
+async function startTraining() {
+  if (!await checkBackend()) {
+    alert('Cannot reach the Flask backend.\nMake sure you ran: python app.py');
+    return;
+  }
+  document.getElementById('runBtn').disabled = true;
+  document.getElementById('stopBtn').style.display = 'block';
+  document.getElementById('errBox').style.display = 'none';
+  document.getElementById('logBody').innerHTML = '';
+  lastEp = 0;
+  setStatus('Starting…', 'run');
+  initLCChart();
+  initEpsChart();
+
+  const r = await fetch(API+'/api/train', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(getP())});
+  if (!r.ok) { alert('Failed to start training'); endUI(); return; }
+  startPoll();
+}
+
+async function stopTraining() {
+  await fetch(API+'/api/stop', {method:'POST'});
+  stopPoll(); endUI(); setStatus('Stopped','');
+}
+
+function resetDash() {
+  stopPoll();
+  Object.values(charts).forEach(c=>c.destroy()); charts={};
+  ['mv-q','mv-s','mv-d','mv-best'].forEach(id=>document.getElementById(id).textContent='—');
+  ['ms-q','ms-s','ms-d'].forEach(id=>document.getElementById(id).textContent='not trained');
+  document.getElementById('ms-best').textContent='awaiting run';
+  ['mc-q','mc-s','mc-d'].forEach(id=>document.getElementById(id).className='mc');
+  document.getElementById('actionBars').innerHTML='<div style="color:var(--muted);font-size:12px;font-family:var(--mono)">Train to see results</div>';
+  document.getElementById('progBar').style.width='0%';
+  document.getElementById('progLbl').textContent='Ready to train';
+  document.getElementById('epPill').textContent='Ep 0 / 0';
+  document.getElementById('logBody').innerHTML='<div style="color:var(--muted)">Adjust parameters and press Run Training…</div>';
+  document.getElementById('errBox').style.display='none';
+  setStatus('Ready',''); lastEp=0;
+  endUI();
+  fetchProfile();
+  initEpsChart();
+}
+
+checkBackend();
+fetchProfile().catch(renderProfileFallback);
+initEpsChart();
+
+document.getElementById('s-ed').addEventListener('input', initEpsChart);
+document.getElementById('s-e0').addEventListener('input', initEpsChart);
+document.getElementById('s-ep').addEventListener('input', initEpsChart);
+</script>
+</body>
+</html>
